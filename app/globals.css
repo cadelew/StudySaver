@@ -1,0 +1,172 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Work+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+  /* Core palette — warm cream + forest green + sage + gold/sand */
+  --color-background: #F8F7F2;
+  --color-foreground: #1C2620;
+
+  --color-primary: #1A4331;
+  --color-primary-foreground: #F8F7F2;
+  --color-primary-50: #EEF3EF;
+  --color-primary-100: #D4DCD2;
+  --color-primary-200: #B6C5B8;
+  --color-primary-600: #1A4331;
+  --color-primary-700: #122E22;
+
+  /* Sage secondary */
+  --color-sage: #D4DCD2;
+  --color-sage-foreground: #1A4331;
+
+  /* Gold / sand accent */
+  --color-accent: #DDBA76;
+  --color-accent-foreground: #1A4331;
+  --color-accent-50: #FBF6EC;
+  --color-accent-100: #F4E8CD;
+
+  --color-success: #4F8A6B;
+  --color-success-50: #E9F2EC;
+
+  --color-muted: #EEEDE6;
+  --color-muted-foreground: #5B6660;
+
+  --color-card: #FFFFFF;
+  --color-card-foreground: #1C2620;
+
+  --color-border: #E6E4DA;
+  --color-input: #E6E4DA;
+  --color-ring: #1A4331;
+
+  --color-destructive: #C0573B;
+  --color-destructive-foreground: #FFFFFF;
+
+  --color-popover: #FFFFFF;
+  --color-popover-foreground: #1C2620;
+
+  --color-secondary: #EEEDE6;
+  --color-secondary-foreground: #1C2620;
+
+  /* Pastel earth tones for category cards */
+  --color-earth-sage: #DCE5DA;
+  --color-earth-sand: #F0E4CC;
+  --color-earth-clay: #EAD6CC;
+  --color-earth-rose: #ECD8D8;
+  --color-earth-sky: #D8E1E4;
+  --color-earth-lilac: #E0DCE8;
+
+  /* Typography */
+  --font-sans: 'Work Sans', system-ui, sans-serif;
+  --font-display: 'Outfit', system-ui, sans-serif;
+
+  /* Border radius — soft, tactile */
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 2rem;
+
+  /* Shadows — very soft, layered */
+  --shadow-card: 0 2px 8px -2px rgba(26, 67, 49, 0.06), 0 1px 3px -1px rgba(26, 67, 49, 0.05);
+  --shadow-card-hover: 0 12px 28px -8px rgba(26, 67, 49, 0.12), 0 4px 10px -4px rgba(26, 67, 49, 0.08);
+  --shadow-fab: 0 10px 30px -6px rgba(26, 67, 49, 0.4);
+
+  --animate-pulse-ring: pulse-ring 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+
+  @keyframes pulse-ring {
+    0% { transform: scale(1); opacity: 0.7; }
+    100% { transform: scale(1.6); opacity: 0; }
+  }
+}
+
+:root {
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  height: auto;
+  min-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+body {
+  height: auto;
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: visible;
+  background: var(--color-background, #F8F7F2);
+  font-family: var(--font-sans, system-ui, sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: var(--color-foreground, #1C2620);
+}
+
+.font-display {
+  font-family: var(--font-display, 'Outfit', sans-serif);
+  letter-spacing: -0.02em;
+}
+
+.app-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #CFCDC2; border-radius: 9999px; }
+
+/* Waveform bars for voice recorder */
+@keyframes wave {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+.wave-bar { animation: wave 0.8s ease-in-out infinite; }
+
+/* Motion utilities (ease-out enter, spring-like) */
+@keyframes slide-up {
+  0% { opacity: 0; transform: translateY(24px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes pulse-ring-kf {
+  0% { transform: scale(1); opacity: 0.7; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+@keyframes ping-kf {
+  75%, 100% { transform: scale(2); opacity: 0; }
+}
+@keyframes savings-flash-kf {
+  0% { background-color: transparent; }
+  30% { background-color: rgba(79, 138, 107, 0.16); }
+  100% { background-color: transparent; }
+}
+.animate-slide-up { animation: slide-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-fade-in { animation: fade-in 0.35s ease-out both; }
+.animate-pulse-ring { animation: pulse-ring-kf 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite; }
+.animate-ping { animation: ping-kf 1.2s cubic-bezier(0, 0, 0.2, 1) infinite; }
+.savings-flash { animation: savings-flash-kf 0.6s ease-out; }
+
+/* Respect reduced motion globally */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

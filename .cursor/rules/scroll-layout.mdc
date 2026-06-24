@@ -1,0 +1,28 @@
+---
+description: Scroll layout rules for StudySaver app shell and pages
+globs: app/**/*.tsx,components/**/*.tsx,app/globals.css
+alwaysApply: false
+---
+
+# Scroll layout (StudySaver)
+
+The app uses **document scrolling** on `html`, not a nested scroll container.
+
+## Do NOT
+
+- Set `overflow: hidden` on `html` or `body` (except onboarding routes that manage their own scroll)
+- Wrap the app in `fixed inset-0 overflow-hidden` shells with inner scroll areas
+- Add framer-motion page wrappers with `transform`/`translateY` around full pages (`app/(app)/template.tsx` must stay a passthrough)
+- Use `min-h-[100dvh]` + `min-h-full` chains that trap content in viewport-height boxes
+- Make charts/maps capture touch (`pointer-events-none` on Recharts wrappers)
+
+## Do
+
+- Keep `AppShell` as `<main className="pb-24">` + fixed bottom nav only
+- Use `ScrollGuard` in `AppShell`; never leave `body.style.overflow` or `body.style.position` locked after modals/voice
+- Put long page content in normal block flow; bottom nav clearance via `pb-24` on `main`
+- After layout/CSS changes, verify home dashboard scrolls past Active Goal to Quick Actions in mobile emulation
+
+## Dev note
+
+Use `npm run dev` while iterating. If using `npm run start`, run `npm run build` first or you will test stale CSS.
