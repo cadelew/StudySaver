@@ -4,8 +4,8 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useStore } from "@/lib/store";
 import { ToastProvider } from "@/components/ui/toast";
-import { StoreHydrator } from "@/components/StoreHydrator";
 import { ScrollGuard } from "@/components/layout/ScrollGuard";
 
 const NAV_ITEMS = [
@@ -64,16 +64,45 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const hydrateFromStorage = useStore((s) => s.hydrateFromStorage);
+
+  // Gate the whole app on a client-side readiness check. This both (a) sends
+  // first-time visitors to onboarding and (b) avoids SSR/client hydration
+  // mismatches, since all of our content depends on localStorage + the current
+  // time, neither of which exists during server rendering.
+  const [ready, setReady] = React.useState(false);
+
+  React.useEffect(() => {
+    let onboarded = false;
+    try {
+      onboarded = window.localStorage.getItem("studysaver_onboarded") === "1";
+    } catch {
+      onboarded = false;
+    }
+    if (!onboarded) {
+      router.replace("/onboarding");
+      return; // keep the loader up; never flash the dashboard
+    }
+    hydrateFromStorage(); // populate the store before the first content paint
+    setReady(true);
+  }, [router, hydrateFromStorage]);
 
   const isLogPage = pathname === "/log";
+
+  if (!ready) {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center bg-background">
+        <div className="w-9 h-9 rounded-full border-2 border-primary-600/30 border-t-primary-600 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <ToastProvider>
       <ScrollGuard />
-      <StoreHydrator />
       <main className="pb-24">{children}</main>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-card/85 backdrop-blur-xl border-t border-border/60">
+      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 bg-card/85 backdrop-blur-xl border-t border-border/60">
         <div className="flex items-center justify-around h-16 px-2 max-w-md mx-auto" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
           {NAV_ITEMS.map((item) => {
             if (item.isFab) {

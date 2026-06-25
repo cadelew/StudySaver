@@ -9,9 +9,11 @@ interface FinancialHealthCardProps {
   label: string;
   insight: string;
   topCategories: string[];
+  /** No spending logged yet — show a prompt instead of a misleading score. */
+  empty?: boolean;
 }
 
-export function FinancialHealthCard({ score, label, insight, topCategories }: FinancialHealthCardProps) {
+export function FinancialHealthCard({ score, label, insight, topCategories, empty }: FinancialHealthCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -25,12 +27,14 @@ export function FinancialHealthCard({ score, label, insight, topCategories }: Fi
             Financial Health
           </p>
           <div className="flex items-baseline gap-2 mt-1.5">
-            <span className="font-display text-4xl font-bold text-primary-700">{score}</span>
+            <span className="font-display text-4xl font-bold text-primary-700">{empty ? "—" : score}</span>
             <div className="flex items-center gap-1">
-              <svg className="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                <path d="M12 2l2.6 6.3L21 9l-4.8 4.3L17.5 21 12 17.3 6.5 21l1.3-7.7L3 9l6.4-.7L12 2z" />
-              </svg>
-              <span className="text-sm font-semibold text-primary-700">{label}</span>
+              {!empty && (
+                <svg className="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <path d="M12 2l2.6 6.3L21 9l-4.8 4.3L17.5 21 12 17.3 6.5 21l1.3-7.7L3 9l6.4-.7L12 2z" />
+                </svg>
+              )}
+              <span className="text-sm font-semibold text-primary-700">{empty ? "No data yet" : label}</span>
             </div>
           </div>
         </div>
@@ -47,10 +51,16 @@ export function FinancialHealthCard({ score, label, insight, topCategories }: Fi
 
       {/* AI insight */}
       <div className="mt-4 flex items-start gap-2.5 rounded-2xl bg-card/70 px-3.5 py-3">
-        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-success flex items-center justify-center mt-0.5">
-          <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
+        <span className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center mt-0.5 ${empty ? "bg-accent" : "bg-success"}`}>
+          {empty ? (
+            <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+            </svg>
+          ) : (
+            <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          )}
         </span>
         <p className="text-sm text-foreground leading-relaxed">{insight}</p>
       </div>

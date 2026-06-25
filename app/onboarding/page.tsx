@@ -72,7 +72,7 @@ const WELCOME_KEYWORDS = [
 ];
 
 const WALL_TEXT_CLASS =
-  "font-display font-semibold text-[3.25rem] sm:text-[4.25rem] leading-[1.05] tracking-tight";
+  "font-display font-semibold text-[clamp(1.5rem,4.8vh,3.75rem)] leading-[1.05] tracking-tight";
 
 function WelcomeSplash({ onStart, onSkip }: { onStart: () => void; onSkip: () => void }) {
   const splashRef = React.useRef<HTMLDivElement>(null);
@@ -182,7 +182,7 @@ function WelcomeSplash({ onStart, onSkip }: { onStart: () => void; onSkip: () =>
   return (
     <div
       ref={splashRef}
-      className="relative min-h-[100dvh] flex flex-col bg-primary-600 text-primary-foreground px-7 pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(2.5rem,env(safe-area-inset-bottom))] overflow-hidden"
+      className="relative h-[100dvh] flex flex-col bg-primary-600 text-primary-foreground px-7 pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(2.5rem,env(safe-area-inset-bottom))] overflow-hidden"
     >
       <div ref={wallRef} className="relative shrink-0 -mx-7 flex flex-col">
         {/* Star sits between muted text (z-0) and highlighted text (z-20) */}
@@ -222,7 +222,7 @@ function WelcomeSplash({ onStart, onSkip }: { onStart: () => void; onSkip: () =>
         <div className="relative shrink-0 px-7 mt-1 sm:mt-2 md:mt-3">
           <h1
             ref={logoRef}
-            className={`relative font-display text-7xl sm:text-8xl font-bold tracking-tight leading-none transition-colors duration-200 ${
+            className={`relative font-display text-[clamp(2rem,7.5vh,4.5rem)] font-bold tracking-tight leading-none transition-colors duration-200 ${
               logoLit ? "z-20 text-accent-50" : "z-0 text-primary-200/45"
             }`}
           >
@@ -234,8 +234,8 @@ function WelcomeSplash({ onStart, onSkip }: { onStart: () => void; onSkip: () =>
         </div>
       </div>
 
-      {/* Modest buffer on tall screens — capped so the tagline-to-button gap stays tight */}
-      <div className="flex-1 min-h-0 max-h-6 sm:max-h-8" aria-hidden />
+      {/* Spacer absorbs leftover height and pushes the buttons to the bottom */}
+      <div className="flex-1 min-h-0" aria-hidden />
 
       <div className="relative z-30 shrink-0 mt-3 sm:mt-4 flex flex-col gap-3">
         <Button
@@ -250,9 +250,9 @@ function WelcomeSplash({ onStart, onSkip }: { onStart: () => void; onSkip: () =>
         </Button>
         <button
           onClick={onSkip}
-          className="text-white text-sm py-1.5 cursor-pointer hover:text-white/80 transition-colors"
+          className="text-white/90 text-sm py-1.5 cursor-pointer hover:text-white transition-colors"
         >
-          Skip and explore
+          Explore with demo data &middot; no setup
         </button>
       </div>
     </div>
@@ -261,7 +261,7 @@ function WelcomeSplash({ onStart, onSkip }: { onStart: () => void; onSkip: () =>
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const setUser = useStore((s) => s.setUser);
+  const hydrateFromStorage = useStore((s) => s.hydrateFromStorage);
 
   const [step, setStep] = React.useState<Step>("welcome");
   const [direction, setDirection] = React.useState<1 | -1>(1);
@@ -307,7 +307,14 @@ export default function OnboardingPage() {
     const prev = steps[stepIdx - 1];
     if (prev) { setDirection(-1); setStep(prev); }
   };
-  const skip = () => router.push("/");
+  // "Explore with demo data" → mark onboarded + demo so the dashboard shows the
+  // seeded sample persona instead of redirecting back to onboarding.
+  const skip = () => {
+    localStorage.setItem("studysaver_onboarded", "1");
+    localStorage.setItem("studysaver_demo", "1");
+    hydrateFromStorage();
+    router.push("/");
+  };
 
   const handleDone = () => {
     const payload = {
@@ -324,9 +331,12 @@ export default function OnboardingPage() {
       major: form.major,
       college_offers: form.college_offers,
     };
+    // Real account → clean slate, no demo seed.
+    localStorage.removeItem("studysaver_demo");
+    localStorage.removeItem("studysaver_budget");
     localStorage.setItem("studysaver_onboarded", "1");
     localStorage.setItem("studysaver_user", JSON.stringify(payload));
-    setUser(payload);
+    hydrateFromStorage();
     router.push("/");
   };
 

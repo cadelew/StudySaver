@@ -82,6 +82,53 @@ export interface SavingsOpportunity {
   source_url?: string;
   relevance_tag?: string;
   scope?: "campus" | "general";
+  // "discount" = a price cut you still pay something for; "included" = already
+  // paid for via tuition/fees, so the action is "Activate", not "Claim".
+  perk_kind?: "discount" | "included";
+}
+
+// ─── Meal-plan burn-rate optimizer ───────────────────────────────────────────
+
+export type SwipeResetPeriod = "weekly" | "semester" | "block" | "none";
+
+export interface MealPlanRules {
+  swipe_reset: SwipeResetPeriod;        // App State weekly; Purdue/Rutgers semester block
+  swipes_roll_over: boolean;            // false = forfeit at reset
+  dining_dollars_rolls: "fall_to_spring" | "semester" | "year" | "none";
+  swipe_value_estimate: number;         // $/swipe used for forfeiture math
+  forfeiture_summary: string;           // human-readable rule note
+  source_url?: string;
+  curated: boolean;                     // true = verified seed data, false = AI/manual
+}
+
+export interface MealPlan {
+  school: string;
+  swipes_remaining: number;
+  dining_dollars_remaining: number;
+  swipe_deadline: string;               // ISO — next reset OR semester end
+  dining_dollars_deadline: string;      // ISO
+  typical_swipes_per_week?: number;     // user pace input (optional)
+  rules: MealPlanRules;
+  updated_at: string;
+}
+
+// ─── Tuition / add-drop refund radar ─────────────────────────────────────────
+
+export interface RefundTier {
+  pct: number;        // percent of tuition refunded if you drop before `deadline`
+  deadline: string;   // ISO
+}
+
+export interface RefundLadder {
+  school: string;
+  term: string;                 // e.g. "Fall 2026"
+  tuition_amount: number;
+  add_drop_deadline?: string;
+  tiers: RefundTier[];          // sorted descending by pct (100 → 50 → 0)
+  meal_plan_cancel?: { fee: number; deadline: string; notes: string };
+  curated: boolean;
+  source_url?: string;
+  updated_at: string;
 }
 
 export interface CourseMaterial {
@@ -151,4 +198,6 @@ export interface BudgetSnapshot {
   savings_opportunities: SavingsOpportunity[];
   recent_transactions: Transaction[];
   ai_nudge?: string;
+  meal_plan?: MealPlan;
+  refund_ladder?: RefundLadder;
 }

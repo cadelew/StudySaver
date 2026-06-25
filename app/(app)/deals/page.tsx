@@ -8,9 +8,15 @@ import { Button } from "@/components/ui/button";
 import { SavingsTicker } from "@/components/deals/SavingsTicker";
 import { formatCurrency } from "@/lib/utils";
 import { IconSearch, IconCheckCircle } from "@/components/ui/icons";
+import { matchSchoolPerks } from "@/lib/school-perks";
 import type { SavingsOpportunity } from "@/lib/types";
 
-const CATEGORIES = ["All", "Campus", "Developer Tools", "Productivity", "Entertainment", "Transportation", "Design Tools"];
+const CATEGORIES = ["All", "Included", "Campus", "Developer Tools", "Productivity", "Entertainment", "Transportation", "Design Tools"];
+
+const COMMON_SUBSCRIPTIONS = [
+  "Spotify", "Netflix", "Notion", "Adobe Creative Cloud", "ChatGPT Plus",
+  "Amazon Prime", "Hulu", "Disney+", "YouTube Premium", "Apple Music", "Canva", "HBO Max",
+];
 
 export default function DealsPage() {
   const router = useRouter();
@@ -19,18 +25,50 @@ export default function DealsPage() {
   const [loadingId, setLoadingId] = React.useState<string | null>(null);
   const [loadingAI, setLoadingAI] = React.useState(false);
   const [aiLoaded, setAiLoaded] = React.useState(false);
+  const [loadingPerks, setLoadingPerks] = React.useState(false);
+  const [perksLoaded, setPerksLoaded] = React.useState(false);
+  const [subs, setSubs] = React.useState<string[]>([]);
+  const [customSub, setCustomSub] = React.useState("");
+
+  const toggleSub = (s: string) =>
+    setSubs((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
+
+  const addCustomSub = () => {
+    const v = customSub.trim();
+    if (v && !subs.some((s) => s.toLowerCase() === v.toLowerCase())) {
+      setSubs((prev) => [...prev, v]);
+    }
+    setCustomSub("");
+  };
+
+  const customSubs = subs.filter((s) => !COMMON_SUBSCRIPTIONS.includes(s));
 
   const opportunities = snapshot.savings_opportunities;
+  const school = snapshot.user.school;
+
+  // Auto-surface curated "already paid for" perks for the student's school.
+  React.useEffect(() => {
+    const curated = matchSchoolPerks(school);
+    if (curated.length > 0) mergeSavingsOpportunities(curated);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [school]);
+
+  const isIncluded = (o: SavingsOpportunity) => o.perk_kind === "included";
+  const isCampus = (o: SavingsOpportunity) =>
+    !isIncluded(o) && (o.scope === "campus" || o.category === "Campus");
 
   const filtered = activeCategory === "All"
     ? opportunities
-    : activeCategory === "Campus"
-      ? opportunities.filter((o) => o.scope === "campus" || o.category === "Campus")
-      : opportunities.filter((o) => o.category === activeCategory);
+    : activeCategory === "Included"
+      ? opportunities.filter(isIncluded)
+      : activeCategory === "Campus"
+        ? opportunities.filter(isCampus)
+        : opportunities.filter((o) => o.category === activeCategory && !isIncluded(o));
 
-  const campusDeals = filtered.filter((o) => o.scope === "campus" || o.category === "Campus");
-  const generalDeals = filtered.filter((o) => o.scope !== "campus" && o.category !== "Campus");
-  const showGrouped = activeCategory === "All" && campusDeals.length > 0 && generalDeals.length > 0;
+  const includedPerks = filtered.filter(isIncluded);
+  const campusDeals = filtered.filter(isCampus);
+  const generalDeals = filtered.filter((o) => !isIncluded(o) && !isCampus(o));
+  const showGrouped = activeCategory === "All" && (campusDeals.length > 0 || includedPerks.length > 0) && generalDeals.length > 0;
 
   const totalFound = opportunities
     .filter((o) => o.claim_status !== "ignored")
@@ -61,7 +99,7 @@ export default function DealsPage() {
         body: JSON.stringify({
           school: snapshot.user.school,
           major: snapshot.user.major,
-          subscriptions: ["Spotify", "Notion"],
+          subscriptions: subs,
         }),
       });
       const data = await res.json();
@@ -99,6 +137,49 @@ export default function DealsPage() {
     }
   };
 
+  const handleLoadPerks = async () => {
+    setLoadingPerks(true);
+    try {
+      const res = await fetch("/api/find-perks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ school, major: snapshot.user.major }),
+      });
+      const data = await res.json();
+      if (res.ok && data.perks?.length) {
+        mergeSavingsOpportunities(
+          data.perks.map(
+            (p: {
+              name: string;
+              category: string;
+              description: string;
+              estimated_savings: number;
+              source_url?: string;
+              relevance_tag?: string;
+            }, i: number) => ({
+              id: `perk-ai-${Date.now()}-${i}`,
+              user_id: snapshot.user.id,
+              name: p.name,
+              category: p.category,
+              description: p.description,
+              estimated_savings: p.estimated_savings,
+              claim_status: "not_claimed" as const,
+              source_url: p.source_url,
+              relevance_tag: p.relevance_tag,
+              scope: "campus" as const,
+              perk_kind: "included" as const,
+            })
+          )
+        );
+      }
+      setPerksLoaded(true);
+    } catch {
+      setPerksLoaded(true);
+    } finally {
+      setLoadingPerks(false);
+    }
+  };
+
   return (
     <div className="min-h-full">
       <div className="flex items-center gap-3 px-4 pt-14 pb-4">
@@ -128,7 +209,64 @@ export default function DealsPage() {
           </div>
         )}
 
-        {/* AI research button */}
+        {/* Subscription picker — feeds the deal finder so it hunts discounts on what you actually pay for */}
+        <div className="rounded-2xl bg-card border border-border/60 p-4 space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Subscriptions you pay for</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Check the ones you have and we&apos;ll hunt for student discounts on them.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {COMMON_SUBSCRIPTIONS.map((s) => {
+              const sel = subs.includes(s);
+              return (
+                <button
+                  key={s}
+                  onClick={() => toggleSub(s)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium border transition-all ${
+                    sel
+                      ? "bg-primary-600 text-white border-primary-600"
+                      : "bg-muted text-muted-foreground border-transparent hover:bg-gray-200"
+                  }`}
+                >
+                  {sel ? "✓ " : ""}{s}
+                </button>
+              );
+            })}
+            {customSubs.map((s) => (
+              <button
+                key={s}
+                onClick={() => toggleSub(s)}
+                className="rounded-full px-3 py-1.5 text-xs font-medium border bg-primary-600 text-white border-primary-600"
+              >
+                {s} ✕
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={customSub}
+              onChange={(e) => setCustomSub(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomSub(); } }}
+              placeholder="Add another subscription…"
+              className="flex-1 rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40"
+            />
+            <Button onClick={addCustomSub} variant="outline" className="px-4">Add</Button>
+          </div>
+        </div>
+
+        {/* AI research buttons */}
+        {!perksLoaded && (
+          <Button
+            onClick={handleLoadPerks}
+            loading={loadingPerks}
+            variant="outline"
+            className="w-full border-primary-200 text-primary-700 hover:bg-primary-50"
+          >
+            Surface perks you already pay for
+          </Button>
+        )}
         {!aiLoaded && (
           <Button
             onClick={handleLoadAI}
@@ -159,6 +297,18 @@ export default function DealsPage() {
 
         {/* Deals list */}
         <div className="space-y-3">
+          {/* "Already paid for" perks always lead — this is the sharpest, most credible savings */}
+          {includedPerks.length > 0 && (activeCategory === "All" || activeCategory === "Included") && (
+            <DealSection
+              title="Already paid for — just activate"
+              subtitle="Your tuition & fees already cover these. Don't buy them again."
+              deals={includedPerks}
+              loadingId={loadingId}
+              onClaim={handleClaim}
+              onIgnore={handleIgnore}
+            />
+          )}
+
           {showGrouped ? (
             <>
               {campusDeals.length > 0 && (
@@ -183,15 +333,17 @@ export default function DealsPage() {
               )}
             </>
           ) : (
-            filtered.map((opp) => (
-              <DealCard
-                key={opp.id}
-                opportunity={opp}
-                loading={loadingId === opp.id}
-                onClaim={() => handleClaim(opp.id)}
-                onIgnore={() => handleIgnore(opp.id)}
-              />
-            ))
+            filtered
+              .filter((o) => !isIncluded(o))
+              .map((opp) => (
+                <DealCard
+                  key={opp.id}
+                  opportunity={opp}
+                  loading={loadingId === opp.id}
+                  onClaim={() => handleClaim(opp.id)}
+                  onIgnore={() => handleIgnore(opp.id)}
+                />
+              ))
           )}
 
           {filtered.length === 0 && (
@@ -255,13 +407,14 @@ function DealCard({
 }) {
   const isClaimed = opportunity.claim_status === "claimed";
   const isIgnored = opportunity.claim_status === "ignored";
+  const isIncludedPerk = opportunity.perk_kind === "included";
 
   if (isIgnored) return null;
 
   return (
     <div
       className={`rounded-2xl bg-white border shadow-card overflow-hidden transition-all ${
-        isClaimed ? "border-success/30" : "border-gray-100"
+        isClaimed ? "border-success/30" : isIncludedPerk ? "border-primary-200" : "border-gray-100"
       }`}
     >
       <div className="p-4">
@@ -270,9 +423,12 @@ function DealCard({
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-semibold text-sm text-foreground">{opportunity.name}</h3>
               {isClaimed && (
-                <Badge variant="success">✓ Claimed</Badge>
+                <Badge variant="success">{isIncludedPerk ? "✓ Activated" : "✓ Claimed"}</Badge>
               )}
-              {(opportunity.scope === "campus" || opportunity.category === "Campus") && !isClaimed && (
+              {isIncludedPerk && !isClaimed && (
+                <Badge variant="success">Included</Badge>
+              )}
+              {!isIncludedPerk && (opportunity.scope === "campus" || opportunity.category === "Campus") && !isClaimed && (
                 <Badge variant="info">Campus</Badge>
               )}
             </div>
@@ -312,7 +468,7 @@ function DealCard({
               onClick={onClaim}
               className="flex-1 py-3 text-xs text-primary-600 font-semibold hover:bg-primary-50 transition-colors text-center"
             >
-              {loading ? "..." : "Claim →"}
+              {loading ? "..." : isIncludedPerk ? "Activate →" : "Claim →"}
             </a>
           ) : (
             <button
@@ -320,7 +476,7 @@ function DealCard({
               disabled={loading}
               className="flex-1 py-3 text-xs text-primary-600 font-semibold hover:bg-primary-50 transition-colors"
             >
-              {loading ? "..." : "Mark claimed"}
+              {loading ? "..." : isIncludedPerk ? "Mark activated" : "Mark claimed"}
             </button>
           )}
         </div>

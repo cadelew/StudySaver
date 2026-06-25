@@ -1,4 +1,35 @@
-import type { BudgetSnapshot, BudgetCategory, CoursePlan, SavingsOpportunity, User } from "./types";
+import type { BudgetSnapshot, BudgetCategory, CoursePlan, SavingsOpportunity, User, MealPlan, RefundLadder } from "./types";
+import { matchMealPlanRules, DEFAULT_RULES } from "./meal-plan-rules";
+import { matchRefundTemplate, DEFAULT_TEMPLATE, resolveLadder } from "./refund-ladders";
+
+// Demo deadlines computed at load time so the countdowns are always live.
+function isoDaysFromNow(days: number): string {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + days);
+  return d.toISOString();
+}
+
+const DEMO_MEAL_PLAN: MealPlan = {
+  school: "UC Berkeley",
+  swipes_remaining: 47,
+  dining_dollars_remaining: 120,
+  swipe_deadline: isoDaysFromNow(21),
+  dining_dollars_deadline: isoDaysFromNow(21),
+  typical_swipes_per_week: 9,
+  rules: matchMealPlanRules("UC Berkeley") ?? DEFAULT_RULES,
+  updated_at: new Date().toISOString(),
+};
+
+const DEMO_REFUND_LADDER: RefundLadder = resolveLadder(
+  matchRefundTemplate("UC Berkeley") ?? DEFAULT_TEMPLATE,
+  {
+    school: "UC Berkeley",
+    term: "Fall 2026",
+    tuition_amount: 1400,
+    term_start: isoDaysFromNow(-10), // 10 days into the term → 100% window closing soon
+  }
+);
 
 /**
  * Generate sensible default category limits based on the user's profile.
@@ -32,6 +63,7 @@ export const DEMO_SNAPSHOT: BudgetSnapshot = {
     location: "Berkeley, CA",
     major: "Biology",
     monthly_budget: 500,
+    has_meal_plan: true,
     created_at: "2026-06-01T00:00:00Z",
   },
   monthly_budget: 500,
@@ -63,6 +95,20 @@ export const DEMO_SNAPSHOT: BudgetSnapshot = {
     },
   ],
   savings_opportunities: [
+    {
+      id: "perk-berkeley-adobe", user_id: "maya-demo", name: "Adobe Creative Cloud (bSecure)", category: "Software",
+      description: "UC Berkeley provides Adobe CC to students. Activate via Software Central instead of paying $20/mo.",
+      estimated_savings: 240, claim_status: "not_claimed",
+      source_url: "https://software.berkeley.edu/adobe",
+      relevance_tag: "UC Berkeley", scope: "campus", perk_kind: "included",
+    },
+    {
+      id: "perk-berkeley-transit", user_id: "maya-demo", name: "AC Transit Class Pass", category: "Transportation",
+      description: "Your registration fees already cover unlimited AC Transit rides via the Class Pass.",
+      estimated_savings: 300, claim_status: "not_claimed",
+      source_url: "https://pt.berkeley.edu/around/transit/passes",
+      relevance_tag: "UC Berkeley", scope: "campus", perk_kind: "included",
+    },
     {
       id: "s-campus-1", user_id: "maya-demo", name: "CDW-G Student Discount (Berkeley)", category: "Campus",
       description: "Discounted Apple, Lenovo, HP hardware with @berkeley.edu. Supports Student Technology Equity Program.",
@@ -119,6 +165,8 @@ export const DEMO_SNAPSHOT: BudgetSnapshot = {
     { id: "t6", user_id: "maya-demo", amount: 10, merchant: "Peet's Coffee", category: "Eating Out", source: "voice", created_at: "2026-06-19T08:00:00Z" },
   ],
   ai_nudge: "Your eating out is trending 15% high. Cooking twice this week could save enough for concert tickets.",
+  meal_plan: DEMO_MEAL_PLAN,
+  refund_ladder: DEMO_REFUND_LADDER,
 };
 
 export const DEMO_BIO_COURSE_PLAN: CoursePlan = {

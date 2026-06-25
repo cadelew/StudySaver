@@ -7,18 +7,23 @@ import { formatCurrency, pct } from "@/lib/utils";
 import { spring, haptic } from "@/lib/motion";
 import type { BudgetCategory } from "@/lib/types";
 
+interface DailyImpactPoint {
+  label: string;
+  value: number;
+}
+
 interface CategoryBreakdownCardProps {
   category: BudgetCategory;
   expanded: boolean;
   onToggle: () => void;
-  dailyImpact: number[];
+  dailyImpact: DailyImpactPoint[];
 }
 
 export function CategoryBreakdownCard({ category, expanded, onToggle, dailyImpact }: CategoryBreakdownCardProps) {
   const percentage = pct(category.spent, category.monthly_limit);
   const remaining = category.monthly_limit - category.spent;
-  const maxBar = Math.max(...dailyImpact, 1);
-  const days = ["M", "T", "W", "T", "F", "S", "S"];
+  const maxBar = Math.max(...dailyImpact.map((day) => day.value), 1);
+  const weeklyTotal = dailyImpact.reduce((sum, day) => sum + day.value, 0);
 
   return (
     <motion.div
@@ -64,14 +69,18 @@ export function CategoryBreakdownCard({ category, expanded, onToggle, dailyImpac
                     Daily impact
                   </p>
                   <p className="text-xs font-medium text-primary-700">
-                    {remaining >= 0 ? `${formatCurrency(remaining)} left` : `${formatCurrency(-remaining)} over`}
+                    {weeklyTotal > 0
+                      ? `${formatCurrency(weeklyTotal)} this week`
+                      : remaining >= 0
+                        ? `${formatCurrency(remaining)} left`
+                        : `${formatCurrency(-remaining)} over`}
                   </p>
                 </div>
 
                 {/* Micro bar chart */}
                 <div className="flex items-end justify-between gap-2 h-20">
-                  {dailyImpact.map((val, i) => {
-                    const heightPct = (val / maxBar) * 100;
+                  {dailyImpact.map((day, i) => {
+                    const heightPct = (day.value / maxBar) * 100;
                     const isOver = percentage > 100 && i === dailyImpact.length - 1;
                     return (
                       <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
@@ -81,10 +90,11 @@ export function CategoryBreakdownCard({ category, expanded, onToggle, dailyImpac
                             animate={{ height: `${Math.max(heightPct, 4)}%` }}
                             transition={{ delay: i * 0.04, type: "spring", stiffness: 260, damping: 26 }}
                             className="w-full rounded-full"
-                            style={{ background: isOver ? "#C0573B" : val > 0 ? "#1A4331" : "#B6C5B8" }}
+                            style={{ background: isOver ? "#C0573B" : day.value > 0 ? "#1A4331" : "#B6C5B8" }}
+                            title={`${day.label}: ${formatCurrency(day.value)}`}
                           />
                         </div>
-                        <span className="text-[10px] text-primary-700/50 font-medium">{days[i]}</span>
+                        <span className="text-[10px] text-primary-700/50 font-medium">{day.label}</span>
                       </div>
                     );
                   })}

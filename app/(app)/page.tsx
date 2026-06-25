@@ -6,6 +6,8 @@ import { motion } from "framer-motion";
 import { useStore } from "@/lib/store";
 import { formatCurrency, formatCurrencyDecimal } from "@/lib/utils";
 import { GoalProgress } from "@/components/goals/GoalProgress";
+import { MealPlanCard } from "@/components/meal/MealPlanCard";
+import { RefundRadarCard } from "@/components/refunds/RefundRadarCard";
 import { SavingsTicker } from "@/components/deals/SavingsTicker";
 import { SpendChart } from "@/components/budget/SpendChart";
 import { FinancialHealthCard } from "@/components/budget/FinancialHealthCard";
@@ -13,11 +15,12 @@ import { CategoryIcon } from "@/components/budget/CategoryIcon";
 import { MoneyDisplay } from "@/components/ui/money-display";
 import { TOTAL_YEARLY_SAVINGS, FINANCIAL_HEALTH } from "@/lib/demo-data";
 import { getWeeklySpendTrend, getWeeklySpendTotal, getWeeklyBudgetAllowance, getBudgetHealthScore } from "@/lib/spending";
+import { refundStatus } from "@/lib/refunds";
 import { staggerContainer, staggerItem, spring, haptic } from "@/lib/motion";
 
 export default function Dashboard() {
   const router = useRouter();
-  const { snapshot, savingsApplied } = useStore();
+  const { snapshot, savingsApplied, isDemo } = useStore();
   const { user, categories, goals, savings_opportunities, recent_transactions } = snapshot;
 
   const weeklyTrend = React.useMemo(
@@ -51,6 +54,13 @@ export default function Dashboard() {
 
   const today = new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
+  // Surface the refund radar on the dashboard while a deadline is approaching.
+  const showRefundRadar = React.useMemo(() => {
+    if (!snapshot.refund_ladder) return false;
+    const s = refundStatus(snapshot.refund_ladder);
+    return !s.expired && s.daysLeft <= 21;
+  }, [snapshot.refund_ladder]);
+
   return (
     <div className="px-4 pt-14 pb-6">
       {/* Header: avatar + greeting + settings */}
@@ -69,18 +79,29 @@ export default function Dashboard() {
             <p className="font-display font-semibold text-lg text-foreground leading-tight">{user.name}</p>
           </div>
         </div>
-        <button
-          onClick={() => { haptic(); router.push("/onboarding"); }}
-          className="w-10 h-10 rounded-full bg-card border border-border/60 flex items-center justify-center text-foreground cursor-pointer hover:bg-muted transition-colors"
-          aria-label="Settings"
-        >
-          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h10M4 12h16M10 18h10" />
-            <circle cx="17" cy="6" r="2" fill="currentColor" stroke="none" />
-            <circle cx="7" cy="12" r="2" fill="currentColor" stroke="none" />
-            <circle cx="14" cy="18" r="2" fill="currentColor" stroke="none" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-2">
+          {isDemo && (
+            <button
+              onClick={() => { haptic(); router.push("/onboarding"); }}
+              className="flex items-center gap-1.5 rounded-full bg-accent/20 border border-accent/40 px-3 py-1.5 text-xs font-medium text-foreground cursor-pointer hover:bg-accent/30 transition-colors"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+              Demo · Start fresh
+            </button>
+          )}
+          <button
+            onClick={() => { haptic(); router.push("/settings"); }}
+            className="w-10 h-10 rounded-full bg-card border border-border/60 flex items-center justify-center text-foreground cursor-pointer hover:bg-muted transition-colors flex-shrink-0"
+            aria-label="Settings"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h10M4 12h16M10 18h10" />
+              <circle cx="17" cy="6" r="2" fill="currentColor" stroke="none" />
+              <circle cx="7" cy="12" r="2" fill="currentColor" stroke="none" />
+              <circle cx="14" cy="18" r="2" fill="currentColor" stroke="none" />
+            </svg>
+          </button>
+        </div>
       </motion.header>
 
       <motion.div variants={staggerContainer} initial="initial" animate="animate" className="space-y-4">
@@ -138,10 +159,44 @@ export default function Dashboard() {
           <FinancialHealthCard
             score={healthScore}
             label={healthScore >= 7 ? FINANCIAL_HEALTH.label : "Watch spending"}
-            insight={snapshot.ai_nudge || FINANCIAL_HEALTH.insight}
+            insight={
+              recent_transactions.length === 0
+                ? "Log some spending to analyze your financial health."
+                : snapshot.ai_nudge || FINANCIAL_HEALTH.insight
+            }
             topCategories={allTopCats}
+            empty={recent_transactions.length === 0}
           />
         </motion.div>
+
+        {/* Meal plan forfeiture watch (only for students with a meal plan) */}
+        {user.has_meal_plan && (
+          <motion.div variants={staggerItem}>
+            {snapshot.meal_plan ? (
+              <MealPlanCard plan={snapshot.meal_plan} onClick={() => router.push("/meal-plan")} />
+            ) : (
+              <button
+                onClick={() => { haptic(); router.push("/meal-plan"); }}
+                className="w-full flex items-center justify-between bg-accent/20 border border-accent/40 rounded-2xl px-4 py-3 cursor-pointer hover:bg-accent/30 transition-colors"
+              >
+                <div className="text-left">
+                  <p className="text-sm font-semibold text-foreground">Track your meal swipes</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">See what you&apos;re on track to forfeit</p>
+                </div>
+                <svg className="w-4 h-4 text-foreground flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 18l6-6-6-6" />
+                </svg>
+              </button>
+            )}
+          </motion.div>
+        )}
+
+        {/* Refund deadline radar (only while a deadline is near) */}
+        {showRefundRadar && snapshot.refund_ladder && (
+          <motion.div variants={staggerItem}>
+            <RefundRadarCard ladder={snapshot.refund_ladder} onClick={() => router.push("/refunds")} />
+          </motion.div>
+        )}
 
         {/* Active goal */}
         {activeGoal && (
@@ -176,8 +231,10 @@ export default function Dashboard() {
             </>
           ) : (
             <>
+              <QuickAction label="Meal Plan" description="Don't forfeit your swipes" cat="Groceries" onClick={() => router.push("/meal-plan")} highlight />
+              <QuickAction label="Refund Radar" description="Drop-class refund deadlines" cat="School Supplies" onClick={() => router.push("/refunds")} />
+              <QuickAction label="Scan Syllabus" description="Find cheapest textbooks" cat="School Supplies" onClick={() => router.push("/course-cost")} />
               <QuickAction label="Check Before I Buy" description="Is this purchase smart?" cat="Eating Out" onClick={() => router.push("/check")} />
-              <QuickAction label="Scan Syllabus" description="Find cheapest textbooks" cat="School Supplies" onClick={() => router.push("/course-cost")} highlight />
               <QuickAction label="Plan a Goal" description="Concert, trip, textbooks" cat="Entertainment" onClick={() => router.push("/goals")} />
               <QuickAction label="Find Free Money" description="Student deals & perks" cat="Groceries" onClick={() => router.push("/deals")} />
             </>
@@ -188,7 +245,7 @@ export default function Dashboard() {
         {user.budget_unknown && (
           <motion.div variants={staggerItem}>
             <button
-              onClick={() => router.push("/onboarding")}
+              onClick={() => router.push("/settings")}
               className="w-full flex items-center justify-between bg-accent/20 border border-accent/40 rounded-2xl px-4 py-3 cursor-pointer hover:bg-accent/30 transition-colors"
             >
               <div className="text-left">

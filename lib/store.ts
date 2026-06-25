@@ -1,11 +1,28 @@
 "use client";
 
 import { create } from "zustand";
-import type { BudgetSnapshot, Transaction, Goal, SavingsOpportunity, CoursePlan, User } from "./types";
+import type { BudgetSnapshot, Transaction, Goal, SavingsOpportunity, CoursePlan, User, MealPlan, RefundLadder } from "./types";
 import { DEMO_SNAPSHOT, buildCategoriesForUser } from "./demo-data";
 
 const USER_STORAGE_KEY = "studysaver_user";
 const BUDGET_STORAGE_KEY = "studysaver_budget";
+const DEMO_STORAGE_KEY = "studysaver_demo";
+
+/** True when the user chose "Explore with demo data" — show the seeded persona. */
+function isDemoMode(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(DEMO_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function daysLeftInMonth(): number {
+  const now = new Date();
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  return Math.max(1, end.getDate() - now.getDate());
+}
 
 function loadUserFromStorage(): Partial<User> | null {
   if (typeof window === "undefined") return null;
@@ -19,7 +36,7 @@ function loadUserFromStorage(): Partial<User> | null {
 
 type PersistedBudget = Pick<
   BudgetSnapshot,
-  "total_spent" | "remaining" | "categories" | "recent_transactions" | "goals" | "ai_nudge"
+  "total_spent" | "remaining" | "categories" | "recent_transactions" | "goals" | "ai_nudge" | "meal_plan" | "refund_ladder"
 >;
 
 function loadBudgetFromStorage(): PersistedBudget | null {
@@ -41,11 +58,16 @@ function saveBudgetToStorage(snapshot: BudgetSnapshot) {
     recent_transactions: snapshot.recent_transactions,
     goals: snapshot.goals,
     ai_nudge: snapshot.ai_nudge,
+    meal_plan: snapshot.meal_plan,
+    refund_ladder: snapshot.refund_ladder,
   };
   window.localStorage.setItem(BUDGET_STORAGE_KEY, JSON.stringify(payload));
 }
 
 function buildSnapshotFromStorage(): BudgetSnapshot {
+  // "Explore with demo data" → the fully seeded persona (Maya).
+  if (isDemoMode()) return DEMO_SNAPSHOT;
+
   const stored = loadUserFromStorage();
   if (!stored || !stored.name) return DEMO_SNAPSHOT;
 
@@ -66,27 +88,38 @@ function buildSnapshotFromStorage(): BudgetSnapshot {
     college_offers: stored.college_offers,
     created_at: new Date().toISOString(),
   };
-  const categories = buildCategoriesForUser(user);
-  const budgetStored = loadBudgetFromStorage();
 
+  // Real users start clean — no demo goals, transactions, deals, or seeded plans.
+  // Categories are still derived from their budget; curated school perks/deals are
+  // surfaced on demand from the Deals page.
   const base: BudgetSnapshot = {
-    ...DEMO_SNAPSHOT,
     user,
     monthly_budget: budget,
-    remaining: budget - DEMO_SNAPSHOT.total_spent,
-    categories,
+    total_spent: 0,
+    remaining: budget,
+    days_left: daysLeftInMonth(),
+    categories: buildCategoriesForUser(user),
+    goals: [],
+    savings_opportunities: [],
+    recent_transactions: [],
+    ai_nudge: undefined,
+    meal_plan: undefined,
+    refund_ladder: undefined,
   };
 
+  const budgetStored = loadBudgetFromStorage();
   if (!budgetStored) return base;
 
   return {
     ...base,
     total_spent: budgetStored.total_spent,
     remaining: budget - budgetStored.total_spent,
-    categories: budgetStored.categories,
-    recent_transactions: budgetStored.recent_transactions,
-    goals: budgetStored.goals,
-    ai_nudge: budgetStored.ai_nudge ?? base.ai_nudge,
+    categories: budgetStored.categories?.length ? budgetStored.categories : base.categories,
+    recent_transactions: budgetStored.recent_transactions ?? [],
+    goals: budgetStored.goals ?? [],
+    ai_nudge: budgetStored.ai_nudge,
+    meal_plan: budgetStored.meal_plan,
+    refund_ladder: budgetStored.refund_ladder,
   };
 }
 
@@ -94,6 +127,7 @@ interface AppState {
   snapshot: BudgetSnapshot;
   coursePlan: CoursePlan | null;
   savingsApplied: number;
+  isDemo: boolean;
 
   addTransaction: (txn: Omit<Transaction, "id" | "user_id" | "created_at">) => void;
   applyCourseSavings: (savings: number) => void;
@@ -107,6 +141,8 @@ interface AppState {
   setCategoryLimit: (id: string, amount: number) => void;
   autoAllocateCategories: () => void;
   setAiNudge: (nudge: string) => void;
+  setMealPlan: (plan: MealPlan) => void;
+  setRefundLadder: (ladder: RefundLadder) => void;
   setUser: (user: Partial<User>) => void;
   hydrateFromStorage: () => void;
 }
@@ -115,8 +151,9 @@ export const useStore = create<AppState>((set) => ({
   snapshot: DEMO_SNAPSHOT,
   coursePlan: null,
   savingsApplied: 0,
+  isDemo: false,
 
-  hydrateFromStorage: () => set({ snapshot: buildSnapshotFromStorage() }),
+  hydrateFromStorage: () => set({ snapshot: buildSnapshotFromStorage(), isDemo: isDemoMode() }),
 
   addTransaction: (txn) =>
     set((state) => {
@@ -325,6 +362,20 @@ export const useStore = create<AppState>((set) => ({
     set((state) => ({
       snapshot: { ...state.snapshot, ai_nudge: nudge },
     })),
+
+  setMealPlan: (plan) =>
+    set((state) => {
+      const nextSnapshot = { ...state.snapshot, meal_plan: plan };
+      saveBudgetToStorage(nextSnapshot);
+      return { snapshot: nextSnapshot };
+    }),
+
+  setRefundLadder: (ladder) =>
+    set((state) => {
+      const nextSnapshot = { ...state.snapshot, refund_ladder: ladder };
+      saveBudgetToStorage(nextSnapshot);
+      return { snapshot: nextSnapshot };
+    }),
 
   setUser: (user) =>
     set((state) => {

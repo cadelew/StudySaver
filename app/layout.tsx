@@ -25,7 +25,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/icon.svg" />
         <link rel="icon" href="/icon.svg" type="image/svg+xml" />
       </head>
-      <body>{children}</body>
+      <body>
+        <div className="phone-frame">{children}</div>
+      </body>
     </html>
   );
 }

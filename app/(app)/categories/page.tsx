@@ -8,17 +8,42 @@ import { CategoryBreakdownCard } from "@/components/budget/CategoryBreakdownCard
 import { CategoryAllocationPanel } from "@/components/budget/CategoryAllocationPanel";
 import { formatCurrency } from "@/lib/utils";
 import { staggerContainer, staggerItem, spring, haptic } from "@/lib/motion";
+import type { Transaction } from "@/lib/types";
 
-// Deterministic pseudo daily-impact series per category (demo)
-function dailyImpactFor(spent: number, seed: number): number[] {
-  const out: number[] = [];
-  let s = seed * 9301 + 49297;
-  for (let i = 0; i < 7; i++) {
-    s = (s * 9301 + 49297) % 233280;
-    const r = s / 233280;
-    out.push(Math.round(r * (spent / 3)));
-  }
-  return out;
+function dayKey(date: Date): string {
+  return date.toLocaleDateString("en-CA");
+}
+
+function buildDailyImpact(transactions: Transaction[], categoryName: string) {
+  const today = new Date();
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - (6 - i));
+    date.setHours(0, 0, 0, 0);
+
+    return {
+      key: dayKey(date),
+      label: date.toLocaleDateString("en-US", { weekday: "narrow" }),
+      value: 0,
+    };
+  });
+
+  const indexByKey = new Map(days.map((day, index) => [day.key, index]));
+  const normalizedCategory = categoryName.toLowerCase();
+
+  transactions.forEach((txn) => {
+    if (txn.category.toLowerCase() !== normalizedCategory) return;
+
+    const createdAt = new Date(txn.created_at);
+    if (Number.isNaN(createdAt.getTime())) return;
+
+    const index = indexByKey.get(dayKey(createdAt));
+    if (index !== undefined) {
+      days[index].value += txn.amount;
+    }
+  });
+
+  return days;
 }
 
 export default function CategoriesPage() {
@@ -27,6 +52,16 @@ export default function CategoriesPage() {
   const [expandedId, setExpandedId] = React.useState<string | null>(snapshot.categories[0]?.id ?? null);
 
   const totalSpent = snapshot.categories.reduce((a, c) => a + c.spent, 0);
+  const dailyImpactByCategory = React.useMemo(
+    () =>
+      new Map(
+        snapshot.categories.map((cat) => [
+          cat.id,
+          buildDailyImpact(snapshot.recent_transactions, cat.name),
+        ])
+      ),
+    [snapshot.categories, snapshot.recent_transactions]
+  );
 
   return (
     <div className="min-h-full px-4 pt-14 pb-6">
@@ -57,13 +92,13 @@ export default function CategoriesPage() {
           />
         </motion.div>
 
-        {snapshot.categories.map((cat, i) => (
+        {snapshot.categories.map((cat) => (
           <motion.div key={cat.id} variants={staggerItem} transition={spring}>
             <CategoryBreakdownCard
               category={cat}
               expanded={expandedId === cat.id}
               onToggle={() => setExpandedId(expandedId === cat.id ? null : cat.id)}
-              dailyImpact={dailyImpactFor(cat.spent || cat.monthly_limit / 2, i + 1)}
+              dailyImpact={dailyImpactByCategory.get(cat.id) ?? []}
             />
           </motion.div>
         ))}
