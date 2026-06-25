@@ -11,8 +11,9 @@ function formatOfferLine(o: CollegeOffer): string {
   const parts: string[] = [];
   if (o.estimated_cost !== undefined) parts.push(`$${o.estimated_cost.toLocaleString()}/yr total cost`);
   if (o.aid_amount !== undefined) parts.push(`$${o.aid_amount.toLocaleString()}/yr in aid`);
+  if (o.letter_text) parts.push(`Award letter notes: ${o.letter_text.slice(0, 600)}`);
   if (parts.length === 0) return " (offer received, details not entered)";
-  return `: ${parts.join(", ")}`;
+  return `: ${parts.join("; ")}`;
 }
 
 function buildPrompt(

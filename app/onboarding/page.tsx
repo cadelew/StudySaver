@@ -597,6 +597,13 @@ export default function OnboardingPage() {
                 subtitle="We'll help you compare aid packages and write negotiation scripts."
               >
                 <OffersStep form={form} setForm={setForm} />
+                <button
+                  type="button"
+                  onClick={goNext}
+                  className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors cursor-pointer"
+                >
+                  Skip for now — you can add offers later in Aid Negotiation
+                </button>
               </OnboardStep>
             )}
 
@@ -735,7 +742,7 @@ export default function OnboardingPage() {
       </div>
 
       <div className="flex gap-3 mt-6 shrink-0">
-        {stepIdx > 1 && (
+        {stepIdx >= 1 && (
           <Button onClick={goBack} variant="secondary" className="flex-1">
             Back
           </Button>

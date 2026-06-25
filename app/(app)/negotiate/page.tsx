@@ -5,10 +5,16 @@ import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { IconDocument, IconUpload } from "@/components/ui/icons";
 import { useToast } from "@/components/ui/toast";
 import type { CollegeOffer } from "@/lib/types";
 
 type Medium = "email" | "phone";
+
+function persistOffers(offers: CollegeOffer[]) {
+  const stored = JSON.parse(localStorage.getItem("studysaver_user") || "{}");
+  localStorage.setItem("studysaver_user", JSON.stringify({ ...stored, college_offers: offers }));
+}
 
 export default function NegotiatePage() {
   const router = useRouter();
@@ -24,10 +30,19 @@ export default function NegotiatePage() {
   const [script, setScript] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
 
-  // Inline add-offer state
   const [newSchool, setNewSchool] = React.useState("");
   const [newAid, setNewAid] = React.useState("");
   const [newCost, setNewCost] = React.useState("");
+  const [pendingLetterText, setPendingLetterText] = React.useState<string | null>(null);
+  const [letterFileName, setLetterFileName] = React.useState("");
+  const [parsingLetter, setParsingLetter] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const syncOffers = (updated: CollegeOffer[]) => {
+    setOffers(updated);
+    setUser({ college_offers: updated });
+    persistOffers(updated);
+  };
 
   const addOffer = () => {
     if (!newSchool.trim()) return;
@@ -35,23 +50,44 @@ export default function NegotiatePage() {
       school: newSchool.trim(),
       aid_amount: newAid ? Number(newAid) : undefined,
       estimated_cost: newCost ? Number(newCost) : undefined,
+      letter_text: pendingLetterText || undefined,
     };
     const updated = [...offers.filter((o) => o.school !== offer.school), offer];
-    setOffers(updated);
-    setUser({ college_offers: updated });
-    const stored = JSON.parse(localStorage.getItem("studysaver_user") || "{}");
-    localStorage.setItem("studysaver_user", JSON.stringify({ ...stored, college_offers: updated }));
+    syncOffers(updated);
     setNewSchool("");
     setNewAid("");
     setNewCost("");
+    setPendingLetterText(null);
+    setLetterFileName("");
   };
 
   const removeOffer = (school: string) => {
-    const updated = offers.filter((o) => o.school !== school);
-    setOffers(updated);
-    setUser({ college_offers: updated });
-    const stored = JSON.parse(localStorage.getItem("studysaver_user") || "{}");
-    localStorage.setItem("studysaver_user", JSON.stringify({ ...stored, college_offers: updated }));
+    syncOffers(offers.filter((o) => o.school !== school));
+  };
+
+  const handleLetterUpload = async (file: File) => {
+    setParsingLetter(true);
+    setLetterFileName(file.name);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/parse-aid-letter", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to parse letter");
+
+      if (data.school) setNewSchool(data.school);
+      if (data.aid_amount !== undefined) setNewAid(String(data.aid_amount));
+      if (data.estimated_cost !== undefined) setNewCost(String(data.estimated_cost));
+      if (data.letter_text) setPendingLetterText(data.letter_text);
+
+      toast(data.school ? `Read offer from ${data.school}` : "Aid letter parsed — review the details");
+    } catch (err) {
+      console.error(err);
+      setLetterFileName("");
+      toast(err instanceof Error ? err.message : "Couldn't read that file", "error");
+    } finally {
+      setParsingLetter(false);
+    }
   };
 
   const handleGenerate = async () => {
@@ -94,7 +130,6 @@ export default function NegotiatePage() {
       <PageHeader title="Aid Negotiation" onBack={() => router.push("/")} />
 
       <div className="px-4 pb-32 space-y-5">
-        {/* Explainer */}
         <div className="bg-primary-50 border border-primary-100 rounded-2xl p-4">
           <p className="text-sm text-primary-700 leading-relaxed">
             Got accepted to multiple schools? You can often negotiate a better financial aid package
@@ -102,7 +137,6 @@ export default function NegotiatePage() {
           </p>
         </div>
 
-        {/* Primary school */}
         <section className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Your top-choice school</p>
           <Input
@@ -112,7 +146,6 @@ export default function NegotiatePage() {
           />
         </section>
 
-        {/* Competing offers */}
         <section className="space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Competing offers</p>
 
@@ -125,7 +158,7 @@ export default function NegotiatePage() {
                     key={offer.school}
                     className="flex items-center justify-between bg-card border border-border/60 rounded-2xl px-4 py-3"
                   >
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-sm font-semibold text-foreground">{offer.school}</p>
                       <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
                         {offer.estimated_cost !== undefined && (
@@ -142,11 +175,14 @@ export default function NegotiatePage() {
                             <p className="text-xs text-muted-foreground italic">Details not entered</p>
                           )
                         )}
+                        {offer.letter_text && (
+                          <p className="text-xs text-success">Letter attached</p>
+                        )}
                       </div>
                     </div>
                     <button
                       onClick={() => removeOffer(offer.school)}
-                      className="text-muted-foreground hover:text-foreground transition-colors ml-3 cursor-pointer"
+                      className="text-muted-foreground hover:text-foreground transition-colors ml-3 cursor-pointer shrink-0"
                       aria-label={`Remove ${offer.school}`}
                     >
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -160,8 +196,43 @@ export default function NegotiatePage() {
             <p className="text-sm text-muted-foreground italic">No competing offers added yet.</p>
           )}
 
-          {/* Inline add */}
           <div className="bg-muted rounded-2xl p-3 space-y-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleLetterUpload(file);
+                e.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={parsingLetter}
+              className="w-full border-2 border-dashed border-primary-200 rounded-2xl p-4 flex items-center gap-3 hover:border-primary-400 hover:bg-primary-50/50 transition-all cursor-pointer disabled:opacity-60"
+            >
+              <span className="w-10 h-10 rounded-full bg-primary-50 text-primary-600 flex items-center justify-center shrink-0">
+                {parsingLetter ? (
+                  <div className="w-5 h-5 rounded-full border-2 border-primary-600 border-t-transparent animate-spin" />
+                ) : letterFileName ? (
+                  <IconDocument className="w-5 h-5" />
+                ) : (
+                  <IconUpload className="w-5 h-5" />
+                )}
+              </span>
+              <div className="text-left min-w-0">
+                <p className="font-semibold text-foreground text-sm">
+                  {parsingLetter ? "Reading aid letter..." : letterFileName || "Upload aid letter"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  PDF or DOCX — we&apos;ll pull school name and amounts
+                </p>
+              </div>
+            </button>
+
             <Input
               placeholder="School name"
               value={newSchool}
@@ -187,7 +258,6 @@ export default function NegotiatePage() {
           </div>
         </section>
 
-        {/* Medium toggle */}
         <section className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Script type</p>
           <div className="flex rounded-2xl bg-muted p-1 gap-1">
@@ -205,7 +275,6 @@ export default function NegotiatePage() {
           </div>
         </section>
 
-        {/* Generated script */}
         {loading && (
           <div className="flex flex-col items-center gap-4 py-8">
             <div className="relative w-14 h-14">
@@ -237,15 +306,14 @@ export default function NegotiatePage() {
         )}
       </div>
 
-      {/* Sticky CTA */}
       {!script && (
-        <div className="fixed bottom-[72px] left-0 right-0 px-4 pb-4 bg-gradient-to-t from-background via-background/95 to-transparent pt-6">
+        <div className="fixed bottom-[72px] left-1/2 -translate-x-1/2 w-full max-w-md px-4 pb-4 bg-gradient-to-t from-background via-background/95 to-transparent pt-6 z-30">
           <Button
             onClick={handleGenerate}
             disabled={loading || !primarySchool.trim()}
             variant="primary"
             loading={loading}
-            className="w-full h-14 text-base font-bold shadow-fab"
+            className="w-full"
           >
             Write my {medium === "email" ? "email" : "phone script"}
           </Button>

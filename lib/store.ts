@@ -34,6 +34,11 @@ function loadUserFromStorage(): Partial<User> | null {
   }
 }
 
+function hasCustomProfileInStorage(): boolean {
+  const stored = loadUserFromStorage();
+  return Boolean(stored?.name?.trim());
+}
+
 type PersistedBudget = Pick<
   BudgetSnapshot,
   "total_spent" | "remaining" | "categories" | "recent_transactions" | "goals" | "ai_nudge" | "meal_plan" | "refund_ladder"
@@ -128,6 +133,7 @@ interface AppState {
   coursePlan: CoursePlan | null;
   savingsApplied: number;
   isDemo: boolean;
+  hasCustomProfile: boolean;
 
   addTransaction: (txn: Omit<Transaction, "id" | "user_id" | "created_at">) => void;
   applyCourseSavings: (savings: number) => void;
@@ -145,6 +151,8 @@ interface AppState {
   setRefundLadder: (ladder: RefundLadder) => void;
   setUser: (user: Partial<User>) => void;
   hydrateFromStorage: () => void;
+  enterDemoMode: () => void;
+  exitDemoMode: () => void;
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -152,8 +160,41 @@ export const useStore = create<AppState>((set) => ({
   coursePlan: null,
   savingsApplied: 0,
   isDemo: false,
+  hasCustomProfile: false,
 
-  hydrateFromStorage: () => set({ snapshot: buildSnapshotFromStorage(), isDemo: isDemoMode() }),
+  hydrateFromStorage: () =>
+    set({
+      snapshot: buildSnapshotFromStorage(),
+      isDemo: isDemoMode(),
+      hasCustomProfile: hasCustomProfileInStorage(),
+    }),
+
+  enterDemoMode: () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("studysaver_onboarded", "1");
+      window.localStorage.setItem(DEMO_STORAGE_KEY, "1");
+    }
+    set({
+      snapshot: DEMO_SNAPSHOT,
+      isDemo: true,
+      hasCustomProfile: hasCustomProfileInStorage(),
+      coursePlan: null,
+      savingsApplied: 0,
+    });
+  },
+
+  exitDemoMode: () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(DEMO_STORAGE_KEY);
+    }
+    set({
+      snapshot: buildSnapshotFromStorage(),
+      isDemo: false,
+      hasCustomProfile: hasCustomProfileInStorage(),
+      coursePlan: null,
+      savingsApplied: 0,
+    });
+  },
 
   addTransaction: (txn) =>
     set((state) => {

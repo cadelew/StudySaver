@@ -57,7 +57,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export default function SettingsPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { snapshot, setUser, isDemo } = useStore();
+  const { snapshot, setUser, isDemo, hasCustomProfile, exitDemoMode } = useStore();
   const user = snapshot.user;
 
   const [name, setName] = React.useState(user.name);
@@ -148,8 +148,17 @@ export default function SettingsPage() {
         </div>
 
         {isDemo && (
-          <div className="bg-accent/15 border border-accent/30 rounded-2xl px-4 py-3 text-sm text-foreground">
-            You&apos;re exploring with sample data. Run setup again below to create your own profile.
+          <div className="bg-accent/15 border border-accent/30 rounded-2xl px-4 py-3 space-y-3 text-sm text-foreground">
+            <p>
+              {hasCustomProfile
+                ? "You're previewing sample data. Your profile and budget are saved — switch back anytime."
+                : "You're exploring with sample data. Run setup below to create your own profile."}
+            </p>
+            {hasCustomProfile && (
+              <Button onClick={() => { exitDemoMode(); router.push("/"); }} variant="secondary" className="w-full">
+                Back to my profile
+              </Button>
+            )}
           </div>
         )}
 

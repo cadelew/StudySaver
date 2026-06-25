@@ -20,7 +20,7 @@ import { staggerContainer, staggerItem, spring, haptic } from "@/lib/motion";
 
 export default function Dashboard() {
   const router = useRouter();
-  const { snapshot, savingsApplied, isDemo } = useStore();
+  const { snapshot, savingsApplied, isDemo, hasCustomProfile, enterDemoMode, exitDemoMode } = useStore();
   const { user, categories, goals, savings_opportunities, recent_transactions } = snapshot;
 
   const weeklyTrend = React.useMemo(
@@ -61,6 +61,16 @@ export default function Dashboard() {
     return !s.expired && s.daysLeft <= 21;
   }, [snapshot.refund_ladder]);
 
+  const enterDemo = () => {
+    haptic();
+    enterDemoMode();
+  };
+
+  const exitDemo = () => {
+    haptic();
+    exitDemoMode();
+  };
+
   return (
     <div className="px-4 pt-14 pb-6">
       {/* Header: avatar + greeting + settings */}
@@ -80,13 +90,31 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {isDemo && (
+          {isDemo ? (
+            hasCustomProfile ? (
+              <button
+                onClick={exitDemo}
+                className="flex items-center gap-1.5 rounded-full bg-accent/20 border border-accent/40 px-3 py-1.5 text-xs font-medium text-foreground cursor-pointer hover:bg-accent/30 transition-colors"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                My profile
+              </button>
+            ) : (
+              <button
+                onClick={() => { haptic(); router.push("/onboarding"); }}
+                className="flex items-center gap-1.5 rounded-full bg-accent/20 border border-accent/40 px-3 py-1.5 text-xs font-medium text-foreground cursor-pointer hover:bg-accent/30 transition-colors"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                Demo · Set up account
+              </button>
+            )
+          ) : (
             <button
-              onClick={() => { haptic(); router.push("/onboarding"); }}
+              onClick={enterDemo}
               className="flex items-center gap-1.5 rounded-full bg-accent/20 border border-accent/40 px-3 py-1.5 text-xs font-medium text-foreground cursor-pointer hover:bg-accent/30 transition-colors"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-accent" />
-              Demo · Start fresh
+              Try demo
             </button>
           )}
           <button
