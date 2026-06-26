@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2018",
+    "module": "commonjs",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "lib": ["es2015", "dom"],
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noUnusedLocals": false,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["../*"],
+      "framer-motion": ["src/stubs/framer-motion.tsx"],
+      "@/components/ui/money-display": ["src/stubs/money-display.tsx"],
+      "@/components/deals/SavingsTicker": ["src/stubs/savings-ticker.tsx"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["remotion.config.ts"]
+}
